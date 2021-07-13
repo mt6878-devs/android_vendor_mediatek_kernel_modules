@@ -799,6 +799,8 @@ struct kbase_devfreq_queue_info {
  *                      Used to ensure that pages of allocation are accounted
  *                      only once for the process, even if the allocation gets
  *                      imported multiple times for the process.
+ * @kobj:               Links to the per-process sysfs node
+ *                      &kbase_device.proc_sysfs_node.
  */
 struct kbase_process {
 	pid_t tgid;
@@ -808,6 +810,8 @@ struct kbase_process {
 
 	struct rb_node kprcs_node;
 	struct rb_root dma_buf_root;
+
+	struct kobject kobj;
 };
 
 /**
@@ -1195,6 +1199,7 @@ struct kbase_mmu_debug_info {
  * @pcm_dev:                The priority control manager device.
  * @oom_notifier_block:     notifier_block containing kernel-registered out-of-
  *                          memory handler.
+ * @proc_sysfs_node:        Sysfs directory node to store per-process stats.
  * @mem_migrate:            Per device object for managing page migration.
  * @live_fence_metadata:    Count of live fence metadata structures created by
  *                          KCPU queue. These structures may outlive kbase module
@@ -1550,6 +1555,7 @@ struct kbase_device {
 	bool bit_stuck;
 	bool trans_timeout;
 #endif /* CONFIG_MALI_MTK_TRIGGER_KE */
+	struct kobject *proc_sysfs_node;
 };
 
 /**
