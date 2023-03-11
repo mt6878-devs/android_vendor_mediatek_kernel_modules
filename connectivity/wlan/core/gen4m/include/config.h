@@ -2252,7 +2252,7 @@
 #ifdef CFG_STA_2G_BW
 #define DEFAULT_STA_2G_BW (CFG_STA_2G_BW)
 #else
-#define DEFAULT_STA_2G_BW (MAX_BW_20MHZ)
+#define DEFAULT_STA_2G_BW (MAX_BW_40MHZ)
 #endif
 
 #ifdef CFG_STA_5G_BW
