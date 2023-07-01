@@ -307,20 +307,12 @@ static void kbase_pm_get_dvfs_utilisation_calc(struct kbase_device *kbdev)
 	IS_ENABLED(CONFIG_MALI_MTK_DVFS_POLICY)
 	err = kbase_ipa_control_query(
 		kbdev, kbdev->pm.backend.metrics.ipa_control_client,
-		gpu_active_counter, NUM_PERF_COUNTERS, &protected_time);
+		gpu_active_counter, NUM_PERF_COUNTERS, &protected_time, &now);
 #else
 	err = kbase_ipa_control_query(
 		kbdev, kbdev->pm.backend.metrics.ipa_control_client,
 		&gpu_active_counter, 1, &protected_time);
 #endif /* CONFIG_MALI_MIDGARD_DVFS && CONFIG_MALI_MTK_DVFS_POLICY */
-
-	/* Read the timestamp after reading the GPU_ACTIVE counter value.
-	 * This ensures the time gap between the 2 reads is consistent for
-	 * a meaningful comparison between the increment of GPU_ACTIVE and
-	 * elapsed time. The lock taken inside kbase_ipa_control_query()
-	 * function can cause lot of variation.
-	 */
-	now = ktime_get_raw();
 
 	if (err) {
 		dev_err(kbdev->dev,
