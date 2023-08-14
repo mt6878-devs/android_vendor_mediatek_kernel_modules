@@ -6358,7 +6358,7 @@ MODULE_INFO(import_ns, "DMA_BUF");
 /* Create the trace points (otherwise we just get code to call a tracepoint) */
 #include "mali_linux_trace.h"
 
-#ifdef CONFIG_MALI_GATOR_SUPPORT
+#if 0
 EXPORT_TRACEPOINT_SYMBOL_GPL(mali_job_slots_event);
 EXPORT_TRACEPOINT_SYMBOL_GPL(mali_pm_status);
 EXPORT_TRACEPOINT_SYMBOL_GPL(mali_page_fault_insert_pages);
@@ -6386,4 +6386,4 @@ void kbase_trace_mali_total_alloc_pages_change(u32 dev_id, long long event)
 {
 	trace_mali_total_alloc_pages_change(dev_id, event);
 }
-#endif /* CONFIG_MALI_GATOR_SUPPORT */
+#endif

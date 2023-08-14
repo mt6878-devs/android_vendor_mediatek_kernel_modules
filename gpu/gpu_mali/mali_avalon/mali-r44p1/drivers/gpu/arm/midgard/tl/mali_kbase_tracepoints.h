@@ -4313,7 +4313,7 @@ struct kbase_tlstream;
  * Gator tracepoint will be called as well.
  */
 
-#if defined(CONFIG_MALI_GATOR_SUPPORT)
+#if 0
 /* `event` is one of TL_JS_EVENT values here.
  * The values of TL_JS_EVENT are guaranteed to match
  * with corresponding GATOR_JOB_SLOT values.
@@ -4376,7 +4376,7 @@ struct kbase_tlstream;
 				__TL_DISPATCH_STREAM(kbdev, aux),	\
 				ctx_nr, page_cnt);	\
 	} while (0)
-#endif /* CONFIG_MALI_GATOR_SUPPORT */
+#endif
 
 /* clang-format on */
 #endif
