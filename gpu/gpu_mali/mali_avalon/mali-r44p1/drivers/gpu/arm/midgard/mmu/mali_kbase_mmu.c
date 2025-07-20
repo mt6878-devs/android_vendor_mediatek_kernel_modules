@@ -2909,8 +2909,7 @@ static int kbase_mmu_teardown_pgd_pages(struct kbase_device *kbdev, struct kbase
 		phys_addr_t pgd = mmut->pgd;
 		struct page *p = phys_to_page(pgd);
 
-		if (count > nr)
-			count = nr;
+		count = MIN(nr, count);
 
 		/* need to check if this is a 2MB page or a 4kB */
 		for (level = MIDGARD_MMU_TOPLEVEL;
@@ -2922,23 +2921,12 @@ static int kbase_mmu_teardown_pgd_pages(struct kbase_device *kbdev, struct kbase
 			if (mmu_mode->ate_is_valid(page[index], level))
 				break; /* keep the mapping */
 			else if (!mmu_mode->pte_is_valid(page[index], level)) {
-				/* nothing here, advance */
-				switch (level) {
-				case MIDGARD_MMU_LEVEL(0):
-					count = 134217728;
-					break;
-				case MIDGARD_MMU_LEVEL(1):
-					count = 262144;
-					break;
-				case MIDGARD_MMU_LEVEL(2):
-					count = 512;
-					break;
-				case MIDGARD_MMU_LEVEL(3):
-					count = 1;
-					break;
-				}
-				if (count > nr)
-					count = nr;
+				dev_warn(kbdev->dev, "Invalid PTE found @ level %d for VA %llx",
+					 level, vpfn << PAGE_SHIFT);
+				/* nothing here, advance to the next PTE of the current level */
+				count = (1 << ((3 - level) * 9));
+				count -= (vpfn & (count - 1));
+				count = MIN(nr, count);
 				goto next;
 			}
 			next_pgd = mmu_mode->pte_to_phy_addr(
@@ -3688,13 +3676,24 @@ int kbase_mmu_migrate_page(struct tagged_addr old_phys, struct tagged_addr new_p
 	/* Undertaking metadata transfer, while we are holding the mmu_lock */
 	spin_lock(&page_md->migrate_lock);
 	if (level == MIDGARD_MMU_BOTTOMLEVEL) {
-		size_t page_array_index =
-			page_md->data.mapped.vpfn - page_md->data.mapped.reg->start_pfn;
+		enum kbase_page_status page_status = PAGE_STATUS_GET(page_md->status);
 
-		WARN_ON(PAGE_STATUS_GET(page_md->status) != ALLOCATED_MAPPED);
+		if (page_status == ALLOCATED_MAPPED) {
+			/* Replace page in array of pages of the physical allocation. */
+			size_t page_array_index =
+				div_u64(page_md->data.mapped.vpfn, GPU_PAGES_PER_CPU_PAGE) -
+				page_md->data.mapped.reg->start_pfn;
 
-		/* Replace page in array of pages of the physical allocation. */
-		page_md->data.mapped.reg->gpu_alloc->pages[page_array_index] = new_phys;
+			page_md->data.mapped.reg->gpu_alloc->pages[page_array_index] = new_phys;
+		} else if (page_status == NOT_MOVABLE) {
+			dev_dbg(kbdev->dev,
+				"%s: migration completed and page has become NOT_MOVABLE.",
+				__func__);
+		} else {
+			dev_WARN(kbdev->dev,
+				 "%s: migration completed but page has moved to status %d.",
+				 __func__, page_status);
+		}
 	}
 	/* Update the new page dma_addr with the transferred metadata from the old_page */
 	page_md->dma_addr = new_dma_addr;
