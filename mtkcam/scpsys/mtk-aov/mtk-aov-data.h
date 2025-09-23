@@ -20,6 +20,7 @@
 #define AOV_DEV_STOP              _IO('H', 4)
 #define AOV_DEV_QEA               _IO('H', 5)
 #define AOV_DEV_PWR_UT            _IO('H', 6)
+#define AOV_DEV_FRAME_MODE _IOW('H', 7, struct frame_mode_notify)
 
 #if IS_ENABLED(CONFIG_COMPAT)
 #define COMPAT_AOV_DEV_START      _IOW('H', 0, struct aov_user)
@@ -29,6 +30,7 @@
 #define COMPAT_AOV_DEV_STOP       _IO('H', 4)
 #define COMPAT_AOV_DEV_QEA        _IO('H', 5)
 #define COMPAT_AOV_DEV_PWR_UT     _IO('H', 6)
+#define COMPAT_AOV_DEV_FRAME_MODE _IOW('H', 7, struct frame_mode_notify)
 #endif
 
 /*
@@ -49,7 +51,8 @@
 #define AOV_SCP_CMD_PWR_UT           (12)
 #define AOV_SCP_CMD_RESET_SENSOR     (13)
 #define AOV_SCP_CMD_RESET_SENSOR_END (14)
-#define AOV_SCP_CMD_MAX              (15)
+#define AOV_SCP_CMD_FRAME_MODE       (15)
+#define AOV_SCP_CMD_MAX              (16)
 #define AOV_SCP_CMD_ACK              (0x80000000)
 
 #define AOV_DEBUG_MODE_DUMP       (1)  // General debug
@@ -292,7 +295,9 @@ struct aov_user {
 	uint32_t debug_drv_spm;
 	uint32_t debug_drv_time;
 	uint32_t debug_drv_bypass;
-	uint32_t reserved[5];
+	uint32_t xm_param_1;
+	uint32_t xm_param_2;
+	uint32_t reserved[3];
 
 	uint32_t aaa_size;
 	void *aaa_info;
@@ -349,7 +354,9 @@ struct aov_start {
 	uint32_t debug_drv_spm;
 	uint32_t debug_drv_time;
 	uint32_t debug_drv_bypass;
-	uint32_t reserved[5];
+	uint32_t xm_param_1;
+	uint32_t xm_param_2;
+	uint32_t reserved[3];
 
 	// display on/off
 	uint32_t disp_mode;
@@ -385,6 +392,11 @@ struct aov_start {
 struct aov_notify {
 	uint32_t notify;
 	uint32_t status;
+};
+
+struct frame_mode_notify {
+	uint32_t frame_mode;
+	uint32_t param;
 };
 
 struct packet {

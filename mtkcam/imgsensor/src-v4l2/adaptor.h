@@ -50,6 +50,32 @@ extern unsigned int gSensor_num;
 extern unsigned int is_multicam;
 extern unsigned int is_imgsensor_fusion_test_workaround;
 #endif
+struct ImgsensorFtmInfo{
+	u32 sensorID;
+	u8 vendorID;
+	char sensorName[80];
+	u32 fusionID_l;
+	char fusionID[20];
+	u32 snID_l;
+	char sensorSn[20];
+};
+#ifdef __XIAOMI_CAMERA__
+#define MAX_SETTTING_SIZE 2000
+#define MAX_STREAM_SETTTING_SIZE 20
+#define MAX_HEADER_SIZE 4
+
+typedef struct {
+	u16 header[MAX_HEADER_SIZE];
+	u16 init_setting_size;
+	u16 mode_setting_size;
+	u16 streamon_setting_size;
+	u16 streamoff_setting_size;
+	u16 *init_setting_buf;
+	u16 *mode_setting_buf;
+	u16 *streamon_setting_buf;
+	u16 *streamoff_setting_buf;
+} online_setting_data;
+#endif
 
 struct adaptor_ae_ctrl_dbg_info {
 	/* timestamp info when get ae ctrl */

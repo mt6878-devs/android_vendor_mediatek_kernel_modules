@@ -104,6 +104,7 @@ struct aie_data {
 	struct aie_reg_map *reg_map;
 	unsigned int reg_map_num;
 	bool is_cmdq_polling;
+	unsigned int aie_cmdq_event;
 };
 
 static struct clk_bulk_data ipesys_isp7s_aie_clks[] = {
@@ -175,6 +176,7 @@ static struct aie_data data_isp7sp = {
 	.reg_map = isp7sp_aie_reg_map,
 	.reg_map_num = ARRAY_SIZE(isp7sp_aie_reg_map),
 	.is_cmdq_polling = false,
+	.aie_cmdq_event = 374,
 };
 
 static struct aie_data data_isp7sp_1 = {
@@ -1395,6 +1397,10 @@ static const struct v4l2_file_operations fd_video_fops = {
 	.poll = mtk_vfd_fop_poll,
 	.unlocked_ioctl = video_ioctl2,
 	.mmap = v4l2_m2m_fop_mmap,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = v4l2_compat_ioctl32,
+#endif
+
 };
 
 static void mtk_aie_device_run(void *priv)

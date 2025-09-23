@@ -17,8 +17,8 @@ subdir-ccflags-y += \
     -I$(DEVICE_MODULES_PATH)/drivers/clk/mediatek/ \
     -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/slbc/ \
     -I$(srctree)/$(src) \
-    -I$(DEVICE_MODULES_PATH)/include/
-
+    -I$(DEVICE_MODULES_PATH)/include/ \
+    -D__XIAOMI_CAMERA__ \
 
 #ifneq ($(wildcard $(DEVICE_MODULES_PATH)/include/dt-bindings/memory/mt6985-larb-port.h),)
 #  subdir-ccflags-y += -DCAMSYS_TF_DUMP_7SP

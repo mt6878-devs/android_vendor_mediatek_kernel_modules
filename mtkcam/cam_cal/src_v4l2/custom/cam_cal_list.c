@@ -36,7 +36,13 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	{IMX350_SENSOR_ID, 0xA0, Common_read_region},
 	{IMX386_MONO_SENSOR_ID, 0xA0, Common_read_region},
 	{IMX499_SENSOR_ID, 0xA0, Common_read_region},
-	/*  ADD before this line */
+        /* o16 otp start */
+        {MALACHITES5KHP3WIDE_SENSOR_ID, 0xA2, Common_read_region, MAX_EEPROM_SIZE_32K},
+        {MALACHITEIMX882WIDE_SENSOR_ID, 0xA2, Common_read_region, MAX_EEPROM_SIZE_32K},
+        {MALACHITEOV20BFRONT_SENSOR_ID, 0xA2, Common_read_region, MAX_EEPROM_SIZE_32K},
+        {MALACHITEIMX355ULTRA_SENSOR_ID, 0xA0, Common_read_region, MAX_EEPROM_SIZE_32K},
+        {MALACHITEOV02B10MACRO_SENSOR_ID, 0xA4, Common_read_region, MAX_EEPROM_SIZE_32K},
+        /* o16 otp end */
 	{0, 0, 0}       /*end of list */
 };
 

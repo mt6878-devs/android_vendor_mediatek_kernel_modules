@@ -132,6 +132,7 @@ static long mtk_aov_ioctl(struct file *file, unsigned int cmd,
 		unsigned long arg)
 {
 	struct mtk_aov *aov_dev = (struct mtk_aov *)file->private_data;
+	struct aov_core *core_info = &aov_dev->core_info;
 	int ret = 0;
 
 	AOV_DEBUG_LOG(*(aov_dev->enable_aov_log_flag),
@@ -139,6 +140,8 @@ static long mtk_aov_ioctl(struct file *file, unsigned int cmd,
 
 	switch (cmd) {
 	case AOV_DEV_START: {
+		mutex_lock(&core_info->start_stop_mutex);
+		atomic_set(&(core_info->aov_user_start_stop), 1);
 		dev_info(aov_dev->dev, "AOV start+\n");
 		vmm_isp_ctrl_notify(1);
 		mtk_mmdvfs_aov_enable(1);
@@ -151,6 +154,7 @@ static long mtk_aov_ioctl(struct file *file, unsigned int cmd,
 			if (ret) {
 				dev_info(aov_dev->dev, "%s: failed to copy aov user data: %d\n",
 					__func__, ret);
+				mutex_unlock(&core_info->start_stop_mutex);
 				return -EFAULT;
 			}
 			g_frame_mode = user.frame_mode;
@@ -174,6 +178,7 @@ static long mtk_aov_ioctl(struct file *file, unsigned int cmd,
 		}
 
 		dev_info(aov_dev->dev, "AOV start-(%d)\n", ret);
+		mutex_unlock(&core_info->start_stop_mutex);
 		break;
 	}
 	case AOV_DEV_SENSOR_ON:
@@ -204,6 +209,8 @@ static long mtk_aov_ioctl(struct file *file, unsigned int cmd,
 		AOV_DEBUG_LOG(*(aov_dev->enable_aov_log_flag), "AOV dqevent(%d)-\n", ret);
 		break;
 	case AOV_DEV_STOP:
+		mutex_lock(&core_info->start_stop_mutex);
+		atomic_set(&(core_info->aov_user_start_stop), 0);
 		dev_info(aov_dev->dev, "AOV stop+\n");
 
 		AOV_TRACE_FORCE_BEGIN("AOV stop");
@@ -226,6 +233,7 @@ static long mtk_aov_ioctl(struct file *file, unsigned int cmd,
 		}
 
 		dev_info(aov_dev->dev, "AOV stop-(%d)\n", ret);
+		mutex_unlock(&core_info->start_stop_mutex);
 		break;
 	case AOV_DEV_QEA:
 		AOV_DEBUG_LOG(*(aov_dev->enable_aov_log_flag), "AOV QEA start\n");
@@ -237,6 +245,14 @@ static long mtk_aov_ioctl(struct file *file, unsigned int cmd,
 		ret = aov_core_send_cmd(aov_dev, AOV_SCP_CMD_PWR_UT, NULL, 0, false);
 		AOV_DEBUG_LOG(*(aov_dev->enable_aov_log_flag), "trigger AOV QEA done, ret(%d)\n", ret);
 		break;
+	case AOV_DEV_FRAME_MODE: {
+		dev_info(aov_dev->dev, "AOV update frame mode+\n");
+		ret = aov_core_send_cmd(aov_dev, AOV_SCP_CMD_FRAME_MODE,
+			(void *)arg, sizeof(struct frame_mode_notify), true);
+
+		dev_info(aov_dev->dev, "update frame mode-(%d)\n", ret);
+		break;
+	}
 	default:
 		dev_info(aov_dev->dev, "unknown AOV control code(%d)\n", cmd);
 		return -EINVAL;
@@ -282,9 +298,11 @@ static unsigned int mtk_aov_poll(struct file *file, poll_table *wait)
 static int mtk_aov_release(struct inode *inode, struct file *file)
 {
 	struct mtk_aov *aov_dev = (struct mtk_aov *)file->private_data;
+	struct aov_core *core_info = &aov_dev->core_info;
 	int ret;
 
 	pr_info("%s release aov driver+\n", __func__);
+	atomic_set(&(core_info->aov_user_start_stop), 0);
 
 	ret = aov_core_reset(aov_dev);
 	if (ret > 0) {

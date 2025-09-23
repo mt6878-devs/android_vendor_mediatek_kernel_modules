@@ -254,7 +254,7 @@ static int copy_event_data(struct mtk_aov *aov_dev,
 		// Copy yuvo1/yuvo2/imgo and etc.
 		memcpy(buffer, (void *)event, sizeof(struct ndd_event));
 	} else {
-		if (!power_mode) {
+		if (0) {
 			// Only copy yuvo1/yuvo2/aie/fld/apu out
 			memcpy(buffer, (void *)event, sizeof(struct base_event));
 		} else {
@@ -273,7 +273,7 @@ static int copy_event_data(struct mtk_aov *aov_dev,
 		event_data = core_info->buf_pa + ((uint8_t *)info - core_info->buf_va);
 
 		(void)send_cmd_internal(core_info, AOV_SCP_CMD_NOTIFY,
-			event_data, sizeof(struct aov_notify), false, false);
+			event_data, sizeof(struct aov_notify), false, true);
 	}
 
 	(void)queue_push(&(core_info->queue), buffer);
@@ -354,6 +354,7 @@ int aov_core_send_cmd(struct mtk_aov *aov_dev, uint32_t cmd,
 	int ret;
 
 	AOV_DEBUG_LOG(*(aov_dev->enable_aov_log_flag), "%s+\n", __func__);
+	dev_info(aov_dev->dev, "%s+ command(%d)", __func__, cmd);
 
 	if (aov_dev->op_mode == 0) {
 		dev_info(aov_dev->dev, "%s: bypass send command(%d)", __func__, cmd);
@@ -375,6 +376,7 @@ int aov_core_send_cmd(struct mtk_aov *aov_dev, uint32_t cmd,
 			AOV_DEBUG_LOG(*(aov_dev->enable_aov_log_flag), "aov malloc init-\n");
 			AOV_TRACE_END();
 		} else {
+			dev_info(aov_dev->dev, "%s+ alloc buffer+", __func__);
 			AOV_TRACE_BEGIN("AOV Alloc Buffer");
 			AOV_DEBUG_LOG(*(aov_dev->enable_aov_log_flag), "aov malloc buffer+\n");
 			spin_lock_irqsave(&core_info->buf_lock, flag);
@@ -382,6 +384,7 @@ int aov_core_send_cmd(struct mtk_aov *aov_dev, uint32_t cmd,
 			spin_unlock_irqrestore(&core_info->buf_lock, flag);
 			AOV_DEBUG_LOG(*(aov_dev->enable_aov_log_flag), "aov malloc buffer-\n");
 			AOV_TRACE_END();
+			dev_info(aov_dev->dev, "%s+ alloc buffer-", __func__);
 		}
 		if (buf) {
 			if (cmd == AOV_SCP_CMD_START) {
@@ -516,6 +519,17 @@ int aov_core_send_cmd(struct mtk_aov *aov_dev, uint32_t cmd,
 				len = sizeof(struct aov_start);
 			} else if (cmd == AOV_SCP_CMD_NOTIFY) {
 				memcpy(buf, (void *)data, sizeof(struct aov_notify));
+			} else if (cmd == AOV_SCP_CMD_FRAME_MODE) {
+				struct frame_mode_notify frame_notify = {0};
+				struct frame_mode_notify *notify = (struct frame_mode_notify *)buf;
+				ret = copy_from_user((void *)&frame_notify,
+					(void *)data, sizeof(struct frame_mode_notify));
+				memcpy(notify, &frame_notify, sizeof(struct frame_mode_notify));
+				if (ret) {
+					dev_info(aov_dev->dev, "%s: failed to copy aov frame mode data: %d\n",
+						__func__, ret);
+					return -EFAULT;
+				}
 			} else {
 				AOV_DEBUG_LOG(*(aov_dev->enable_aov_log_flag),
 					"%s: data buffer %p, size %d\n",
@@ -673,6 +687,18 @@ int aov_core_send_cmd(struct mtk_aov *aov_dev, uint32_t cmd,
 			dev_info(aov_dev->dev, "aov free buffer is NULL");
 		spin_unlock_irqrestore(&core_info->buf_lock, flag);
 		AOV_DEBUG_LOG(*(aov_dev->enable_aov_log_flag), "aov free buffer-\n");
+		AOV_TRACE_END();
+	} else if (cmd == AOV_SCP_CMD_FRAME_MODE) {
+		// Free frame_mode_notify buffer
+		AOV_TRACE_BEGIN("AOV Free Buffer");
+		dev_info(aov_dev->dev, "%s+ update frame_mode release buffer+", __func__);
+		spin_lock_irqsave(&core_info->buf_lock, flag);
+		if (buf != NULL)
+			tlsf_free(&(core_info->alloc), buf);
+		else
+			dev_info(aov_dev->dev, "aov update frame_mode free buffer is NULL");
+		spin_unlock_irqrestore(&core_info->buf_lock, flag);
+		dev_info(aov_dev->dev, "%s+ update frame_mode release buffer-", __func__);
 		AOV_TRACE_END();
 	} else if (cmd == AOV_SCP_CMD_STOP) {
 		atomic_set(&(core_info->aov_ready), 0);
@@ -841,6 +867,7 @@ static int scp_state_notify(struct notifier_block *this,
 	int ret;
 
 	if (event == SCP_EVENT_STOP) {
+		mutex_lock(&core_info->start_stop_mutex);
 		(void)aov_aee_record(aov_dev, 0, SCP_STOP);
 		(void)aov_aee_flush(aov_dev);
 
@@ -875,6 +902,7 @@ static int scp_state_notify(struct notifier_block *this,
 			dev_info(aov_dev->dev,
 				"%s: failed to init scp session(%d): %d\n",
 				__func__, session, ret);
+				mutex_unlock(&core_info->start_stop_mutex);
 			return NOTIFY_DONE;
 		}
 
@@ -891,6 +919,7 @@ static int scp_state_notify(struct notifier_block *this,
 		}
 
 		atomic_set(&(core_info->scp_ready), 2);
+		mutex_unlock(&core_info->start_stop_mutex);
 	}
 
 	return NOTIFY_DONE;
@@ -917,6 +946,9 @@ int aov_core_init(struct mtk_aov *aov_dev)
 	atomic_set(&(core_info->aov_ready), 0);
 	atomic_set(&(core_info->cmd_seq), 0);
 	atomic_set(&(core_info->qea_ready), 0);
+	atomic_set(&(core_info->aov_user_start_stop), 0);
+	mutex_init(&core_info->start_stop_mutex);
+	mutex_lock(&core_info->start_stop_mutex);
 
 	if (curr_dev->op_mode == 0) {
 		dev_info(aov_dev->dev, "%s: bypass init operation", __func__);
@@ -1171,8 +1203,7 @@ int aov_core_copy(struct mtk_aov *aov_dev, struct aov_dqevent *dequeue)
 		}
 
 		power_mode = atomic_read(&(core_info->power_mode));
-		if ((debug_mode == AOV_DEBUG_MODE_DUMP) ||
-			(debug_mode == AOV_DEBUG_MODE_NDD) || (!power_mode)) {
+		if (0) {
 			// Setup yuvo1 stride
 			put_user(event->yuvo1_width, (uint32_t *)((uintptr_t)dequeue +
 				offsetof(struct aov_dqevent, yuvo1_width)));
@@ -1411,6 +1442,8 @@ int aov_core_poll(struct mtk_aov *aov_dev, struct file *file,
 {
 	struct aov_core *core_info = &aov_dev->core_info;
 	struct base_event *event;
+	struct aov_notify *info;
+	uint32_t event_data;
 	int ret;
 
 	AOV_DEBUG_LOG(*(aov_dev->enable_aov_log_flag), "%s: poll start+\n", __func__);
@@ -1420,7 +1453,18 @@ int aov_core_poll(struct mtk_aov *aov_dev, struct file *file,
 		return 0;
 	}
 
+	// only copy newest event
 	event = queue_pop(&(core_info->event));
+	while (!queue_empty(&(core_info->event))) {
+		dev_info(aov_dev->dev, "%s: release old aov event id(%d)\n", __func__, event->event_id);
+		info = core_info->notify;
+		info->notify = AOV_NOTIFY_EVT_AVAIL;
+		info->status = event->event_id;
+		event_data = core_info->buf_pa + ((uint8_t *)info - core_info->buf_va);
+		(void)send_cmd_internal(core_info, AOV_SCP_CMD_NOTIFY,
+			event_data, sizeof(struct aov_notify), false, true);
+		event = queue_pop(&(core_info->event));
+	}
 	if (event != NULL) {
 		ret = copy_event_data(aov_dev, event);
 		if (ret >= 0)
@@ -1429,7 +1473,18 @@ int aov_core_poll(struct mtk_aov *aov_dev, struct file *file,
 
 	poll_wait(file, &core_info->poll_wq, wait);
 
+	// only copy newest event
 	event = queue_pop(&(core_info->event));
+	while (!queue_empty(&(core_info->event))) {
+		dev_info(aov_dev->dev, "%s: release old aov event id(%d)\n", __func__, event->event_id);
+		info = core_info->notify;
+		info->notify = AOV_NOTIFY_EVT_AVAIL;
+		info->status = event->event_id;
+		event_data = core_info->buf_pa + ((uint8_t *)info - core_info->buf_va);
+		(void)send_cmd_internal(core_info, AOV_SCP_CMD_NOTIFY,
+			event_data, sizeof(struct aov_notify), false, true);
+		event = queue_pop(&(core_info->event));
+	}
 	if (event != NULL) {
 		ret = copy_event_data(aov_dev, event);
 		if (ret >= 0)
@@ -1454,6 +1509,7 @@ int aov_core_reset(struct mtk_aov *aov_dev)
 	}
 
 	if (atomic_read(&(core_info->aov_ready))) {
+		mutex_lock(&core_info->start_stop_mutex);
 #if AOV_SLB_ALLOC_FREE
 		struct slbc_data slb;
 #endif  // AOV_SLB_ALLOC_FREE
@@ -1521,6 +1577,7 @@ int aov_core_reset(struct mtk_aov *aov_dev)
 		atomic_set(&(core_info->aov_ready), 0);
 
 		ret = 1;
+		mutex_unlock(&core_info->start_stop_mutex);
 	}
 
 	return ret;
@@ -1532,6 +1589,7 @@ int aov_core_uninit(struct mtk_aov *aov_dev)
 	unsigned long flag;
 
 	//devm_kfree(aov_dev->dev, core_info->event_data);
+	mutex_destroy(&core_info->start_stop_mutex);
 
 	if (aov_dev->op_mode == 0) {
 		dev_info(aov_dev->dev, "%s: bypass uninit operation", __func__);
@@ -1607,6 +1665,7 @@ int reset_sensor_flow(void *arg)
 	struct aov_core *core_info = &aov_dev->core_info;
 	int ret = 0;
 	long wait_ret = 0;
+	int aov_user_start_stop = 0;
 
 	dev_info(aov_dev->dev, "%s: Enter while loop to wait event", __func__);
 	while (!kthread_should_stop()) {
@@ -1617,18 +1676,25 @@ int reset_sensor_flow(void *arg)
 			continue;
 		}
 
-		dev_info(aov_dev->dev, "%s: do reset sensor flow+", __func__);
-		ret = mtk_cam_seninf_aov_reset_sensor(core_info->sensor_id);
-		if (ret < 0)
-			dev_info(aov_dev->dev,
-				"mtk_cam_seninf_aov_reset_sensor(%d) fail, ret: %d\n",
-				core_info->sensor_id, ret);
-		dev_info(aov_dev->dev, "%s: do reset sensor flow-", __func__);
+		mutex_lock(&core_info->start_stop_mutex);
+		aov_user_start_stop = atomic_read(&(core_info->aov_user_start_stop));
+		if (aov_user_start_stop) {
+			dev_info(aov_dev->dev, "%s: do reset sensor flow+", __func__);
+			ret = mtk_cam_seninf_aov_reset_sensor(core_info->sensor_id);
+			if (ret < 0)
+				dev_info(aov_dev->dev,
+					"mtk_cam_seninf_aov_reset_sensor(%d) fail, ret: %d\n",
+					core_info->sensor_id, ret);
+			dev_info(aov_dev->dev, "%s: do reset sensor flow-", __func__);
 
-		ret = send_cmd_internal(core_info, AOV_SCP_CMD_RESET_SENSOR_END, 0, 0, false, false);
-		if (ret < 0)
-			dev_info(aov_dev->dev, "%s: failed to do aov reset sensor end: %d\n",
-				__func__, ret);
+			ret = send_cmd_internal(core_info, AOV_SCP_CMD_RESET_SENSOR_END, 0, 0, false, false);
+			if (ret < 0)
+				dev_info(aov_dev->dev, "%s: failed to do aov reset sensor end: %d\n",
+					__func__, ret);
+		} else {
+			dev_info(aov_dev->dev, "%s: skip reset sensor flow since user_start_stop(%d)+", __func__, aov_user_start_stop);
+		}
+		mutex_unlock(&core_info->start_stop_mutex);
 	}
 	dev_info(aov_dev->dev, "%s: leave while loop for kthread stop", __func__);
 	return 0;
