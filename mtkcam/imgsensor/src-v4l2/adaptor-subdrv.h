@@ -9,6 +9,21 @@
 //#include "kd_imgsensor_define_v4l2.h"
 #include "imgsensor-user.h"
 #include "adaptor-def.h"
+#ifdef __XIAOMI_CAMERA__
+#include "async-setting.h"
+#endif
+
+#define IMGSENSOR_FUSION_TEST_WORKAROUND
+
+#define MT6985_PHY_CTRL_VERSIONS "mt6985"
+#define MT6897_PHY_CTRL_VERSIONS "mt6897"
+#define MT6989_PHY_CTRL_VERSIONS "mt6989"
+
+#define IMGSENSOR_FUSION_TEST_WORKAROUND
+
+#define MT6985_PHY_CTRL_VERSIONS "mt6985"
+#define MT6897_PHY_CTRL_VERSIONS "mt6897"
+#define MT6989_PHY_CTRL_VERSIONS "mt6989"
 
 #define IMGSENSOR_FUSION_TEST_WORKAROUND
 
@@ -17,6 +32,10 @@
 #define MT6989_PHY_CTRL_VERSIONS "mt6989"
 #define MT6878_PHY_CTRL_VERSIONS "mt6878"
 #define MT6991_PHY_CTRL_VERSIONS "mt6991"
+
+#define AAC   0x10
+#define OFILM 0x07
+#define SUNNY 0x01
 
 #define DEBUG_LOG(ctx, ...) do { \
 	if (ctx->i2c_client) \
@@ -255,6 +274,10 @@ struct subdrv_mode_struct {
 
 	bool dpc_enabled; /* defect pixel correction */
 	bool pdc_enabled; /* pd correction */
+#ifdef __XIAOMI_CAMERA__
+	bool cms_enabled; /* cms enable */
+	u32 mi_mode_type; /*defu :0 ; full size: 1; bining 2; DXG: 3; CMS: 4;*/
+#endif
 	struct mtk_sensor_saturation_info *saturation_info;
 	struct dcg_info_struct dcg_info;
 	u32 exposure_order_in_lbmf;
@@ -338,6 +361,7 @@ struct subdrv_static_ctx {
 	struct reg_ reg_addr_exposure_in_lut[IMGSENSOR_STAGGER_EXPOSURE_CNT];
 	u16 long_exposure_support;
 	u16 reg_addr_exposure_lshift;
+	u16 reg_addr_framelength_lshift;
 	struct reg_ reg_addr_ana_gain[IMGSENSOR_STAGGER_EXPOSURE_CNT];
 	struct reg_ reg_addr_ana_gain_in_lut[IMGSENSOR_STAGGER_EXPOSURE_CNT];
 	struct reg_ reg_addr_dig_gain[IMGSENSOR_STAGGER_EXPOSURE_CNT];
@@ -372,6 +396,25 @@ struct subdrv_static_ctx {
 	u16 reg_addr_aov_mode_mirror_flip;
 	u8 init_in_open;
 	u8 streaming_ctrl_imp;
+#ifdef __XIAOMI_CAMERA__
+	void (*s_mi_init_setting)(void *arg);
+	void (*s_mi_mode_setting)(void *arg, enum SENSOR_SCENARIO_ID_ENUM scenario_id);
+	void (*s_mi_init_seq)(void *arg);
+	void (*s_mi_stream)(void *arg,bool enable);
+	void (*s_mi_read_CGRatio)(void *arg);
+	u32 (*mi_evaluate_frame_rate_by_scenario)(void *arg, enum SENSOR_SCENARIO_ID_ENUM scenario_id, u32 framerate);
+	u8 mi_vendor_id;
+	u8 mi_enable_async;
+	u8 mi_disable_set_dummy;
+	/*0 default, 1 samsung*/
+	u8 mi_long_exposure_type;
+	struct setting_workqueue *workqueue;
+	u8 mi_i2c_type;
+	bool mi_hb_vb_cal;
+	u16 mi_dxg_reg;
+	u16 mi_dxg_ratio;
+	u32 mi_dcg_gain[IMGSENSOR_STAGGER_EXPOSURE_CNT];
+#endif
 
 	/* custom stream control delay timing for hw limitation */
 	u64 custom_stream_ctrl_delay;
@@ -382,6 +425,18 @@ struct subdrv_static_ctx {
 	/* record glp data type */
 	u32 glp_dt[GLP_DT_MAX_CNT];
 };
+
+#ifdef __XIAOMI_CAMERA__
+#define MI_VENDOR_SUNNY    0x01
+#define MI_VENDOR_SEMCO    0x03
+#define MI_VENDOR_QTECH    0x06
+#define MI_VENDOR_OFILM    0x07
+#define MI_VENDOR_HOLITECH 0x08
+#define MI_VENDOR_TRULY    0x09
+#define MI_VENDOR_AAC      0x10
+#define MI_VENDOR_LITEON   0x15
+#define MI_VENDOR_PRIMAX   0x25
+#endif
 
 #define HDR_CAP_IHDR 0x1
 #define HDR_CAP_MVHDR 0x2
@@ -487,6 +542,8 @@ struct subdrv_ctx {
 	/* for custom stream control delay timing */
 	u64 stream_ctrl_start_time;
 	u64 stream_ctrl_end_time;
+	/*for ov08d dummy line*/
+	u32 vblank_convert;
 };
 
 struct subdrv_feature_control {
@@ -495,6 +552,7 @@ struct subdrv_feature_control {
 };
 
 struct subdrv_ops {
+	int (*get_vendr_id)(struct subdrv_ctx *ctx, u8 *id);
 	int (*get_id)(struct subdrv_ctx *ctx, u32 *id);
 	int (*init_ctx)(struct subdrv_ctx *ctx,
 			struct i2c_client *i2c_client, u8 i2c_write_id);
@@ -553,6 +611,18 @@ struct subdrv_entry {
 	__ret; \
 })
 
+#define subdrv_i2c_rd_u8_8bit(subctx, reg) \
+({ \
+	u8 __val = 0xff; \
+	adaptor_i2c_rd_u8_8bit(subctx->i2c_client, \
+		subctx->i2c_write_id >> 1, reg, &__val); \
+	__val; \
+})
+#define subdrv_i2c_wr_u8_8bit(subctx, reg, val) \
+	adaptor_i2c_wr_u8_8bit(subctx->i2c_client, \
+		subctx->i2c_write_id >> 1, reg, val)
+
+		
 #define subdrv_i2c_rd_u8(subctx, reg) \
 ({ \
 	u8 __val = 0xff; \
@@ -596,6 +666,36 @@ struct subdrv_entry {
 #define subdrv_i2c_wr_regs_u16(subctx, list, len) \
 	adaptor_i2c_wr_regs_u16(subctx->i2c_client, \
 		subctx->i2c_write_id >> 1, list, len)
+
+#ifdef __XIAOMI_CAMERA__
+#define subdrv_i2c_rd_u8_u8(subctx, reg) \
+({ \
+	u8 __val = 0xff; \
+	adaptor_i2c_rd_u8_u8(subctx->i2c_client, \
+		subctx->i2c_write_id >> 1, reg, &__val); \
+	__val; \
+})
+
+#define subdrv_i2c_wr_u8_u8(subctx, reg, val) \
+	adaptor_i2c_wr_u8_u8(subctx->i2c_client, \
+		subctx->i2c_write_id >> 1, reg, val)
+
+#define subdrv_i2c_wr_regs_u8_u8(subctx, list, len) \
+	adaptor_i2c_wr_regs_u8_u8(subctx->i2c_client, \
+		subctx->i2c_write_id >> 1, list, len)
+
+#define subdrv_i2c_wr_regs_u16_burst_for_addr_same(subctx, list, len) \
+	adaptor_i2c_wr_regs_u16_burst_for_addr_same(subctx->i2c_client, \
+		subctx->i2c_write_id >> 1, list, len)
+
+#define subdrv_i2c_wr_regs_u8_burst(subctx, list, len) \
+	adaptor_i2c_wr_regs_u8_burst(subctx->i2c_client, \
+		subctx->i2c_write_id >> 1, list, len)
+
+#define subdrv_i2c_wr_regs_u16_burst(subctx, list, len) \
+	adaptor_i2c_wr_regs_u16_burst(subctx->i2c_client, \
+		subctx->i2c_write_id >> 1, list, len)
+#endif
 
 #define FINE_INTEG_CONVERT(_shutter, _fine_integ) \
 ( \

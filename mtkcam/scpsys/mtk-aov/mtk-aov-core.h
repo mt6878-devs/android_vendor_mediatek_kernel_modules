@@ -18,7 +18,7 @@
 
 #include "./alloc/tlsf/tlsf_alloc.h"
 
-#define AOV_TIMEOUT_MS  4000U
+#define AOV_TIMEOUT_MS  1000U
 
 // Forward declaration
 struct mtk_aov;
@@ -44,6 +44,7 @@ struct aov_core {
 	atomic_t aov_ready;
 	atomic_t cmd_seq;
 	atomic_t qea_ready;
+	atomic_t aov_user_start_stop;
 
 	uint32_t sensor_id;
 
@@ -76,6 +77,8 @@ struct aov_core {
 	atomic_t do_reset_sensor;
 	wait_queue_head_t reset_sensor_wq;
 	struct task_struct *reset_sensor_thread;
+
+	struct mutex start_stop_mutex;
 };
 
 int aov_core_init(struct mtk_aov *device);

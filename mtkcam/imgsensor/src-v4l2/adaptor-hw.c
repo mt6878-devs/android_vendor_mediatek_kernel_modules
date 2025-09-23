@@ -10,7 +10,7 @@
 #include <linux/gpio/consumer.h>
 #include <linux/regulator/consumer.h>
 #include <linux/pinctrl/consumer.h>
-
+#include "kd_imgsensor.h"
 #include "kd_imgsensor_define_v4l2.h"
 #include "adaptor.h"
 #include "adaptor-hw.h"
@@ -37,7 +37,7 @@ static const char * const reg_names[] = {
 static const char * const state_names[] = {
 	ADAPTOR_STATE_NAMES
 };
-
+extern int hwLevel;
 static struct clk *get_clk_by_idx_freq(struct adaptor_ctx *ctx,
 				unsigned long long idx, int freq)
 {
@@ -347,6 +347,18 @@ int do_hw_power_on(struct adaptor_ctx *ctx)
 			ent = &ctx->ctx_pw_seq[i]; // use ctx pw seq
 		else
 			ent = &ctx->subdrv->pw_seq[i];
+
+		if((ctx->subdrv->id == MALACHITES5KHP3WIDE_SENSOR_ID) || (ctx->subdrv->id == MALACHITEIMX882WIDE_SENSOR_ID)) {
+			if((hwLevel < 3)  && (ent->id == HW_ID_AVDD1)) {//p01 dont use avdd1
+				dev_info(ctx->dev,"%s power_on dont use %d\n", ctx->subdrv->name, ent->id);
+				continue;
+			}
+			if((hwLevel >= 3)  && (ent->id == HW_ID_AVDD)) {//p1 dont use avdd
+				dev_info(ctx->dev,"%s power_on dont use %d\n", ctx->subdrv->name, ent->id);
+				continue;
+			}
+		}
+
 		op = &ctx->hw_ops[ent->id];
 		if (!op->set) {
 			adaptor_logd(ctx,
@@ -374,7 +386,7 @@ int do_hw_power_on(struct adaptor_ctx *ctx)
 			}
 		}
 
-		adaptor_logd(ctx, "set comp:%d,val:%d\n", ent->id, ent->val);
+		adaptor_logi(ctx, "husf set comp:%d,val:%d\n", ent->id, ent->val);
 
 		if (ent->delay)
 			mdelay(ent->delay);
@@ -457,10 +469,30 @@ int do_hw_power_off(struct adaptor_ctx *ctx)
 			ent = &ctx->ctx_pw_seq[i]; // use ctx pw seq
 		else
 			ent = &ctx->subdrv->pw_seq[i];
+
+		if(ctx->subdrv->id == MALACHITEIMX882WIDE_SENSOR_ID) {
+			if((hwLevel < 3)  && (ent->id == HW_ID_AVDD1)) {//p01 dont use avdd1
+				dev_info(ctx->dev,"%s power_off  dont use %d\n", ctx->subdrv->name, ent->id);
+				continue;
+			}
+			if((hwLevel >= 3)  && (ent->id == HW_ID_AVDD)) {//p1 dont use avdd
+				dev_info(ctx->dev,"%s power_off dont use %d\n", ctx->subdrv->name, ent->id);
+				continue;
+			}
+		}
+		if(ctx->subdrv->id == MALACHITES5KHP3WIDE_SENSOR_ID) {
+			if((ent->id == HW_ID_AVDD1) || (ent->id == HW_ID_AVDD)) {
+				dev_info(ctx->dev,"%s power_off dont use %d\n", ctx->subdrv->name, ent->id);
+				continue;
+			}
+		}
 		op = &ctx->hw_ops[ent->id];
 		if (!op->unset)
 			continue;
+
 		op->unset(ctx, op->data, ent->val);
+		dev_info(ctx->dev,"unset comp:%d,val:%d\n", ent->id, ent->val);
+
 		//msleep(ent->delay);
 	}
 

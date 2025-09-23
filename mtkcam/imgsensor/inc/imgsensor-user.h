@@ -214,6 +214,10 @@ struct mtk_hdr_ae {
 	__u32 actions;
 	__u32 subsample_tags;
 	int req_id;
+#ifdef __XIAOMI_CAMERA__
+	__u32 blanking_enable;
+	__u32 addBlankingTime;
+#endif
 };
 
 struct mtk_seamless_switch_param {
@@ -416,6 +420,10 @@ struct mtk_sensor_saturation_info {
 	__u32 gain_ratio;
 	__u32 OB_pedestal;
 	__u32 saturation_level;
+	/* The merged raw by the dcg sensor merging mode is merged from several bits of raws */
+	__u32 adc_bit;
+	/* The OB value before merging */
+	__u32 ob_bm;
 };
 
 struct mtk_n_1_mode {
@@ -759,5 +767,15 @@ struct mtk_dcg_ratio_group_by_scenario {
 
 #define VIDIOC_MTK_S_SENTEST_LBMF_DELAY_DO_AE_EN \
 	_IOW('M', BASE_VIDIOC_PRIVATE + 112, int)
+
+#ifdef __XIAOMI_CAMERA__
+#define VIDIOC_XIAOMI_S_LOCK_SETTING_WORK_QUEUE \
+	_IOW('M', BASE_VIDIOC_PRIVATE + 300, __u32)
+#endif
+
+#ifdef __XIAOMI_CAMERA__
+#define VIDIOC_XIAOMI_S_SET_BLANKING_TIME \
+	_IOW('M', BASE_VIDIOC_PRIVATE + 303,  struct mtk_sensor_value)
+#endif
 
 #endif

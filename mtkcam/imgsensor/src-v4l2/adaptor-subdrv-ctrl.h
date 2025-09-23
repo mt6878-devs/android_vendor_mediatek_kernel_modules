@@ -170,6 +170,7 @@ void get_sensor_frame_count(struct subdrv_ctx *ctx, u32 *frame_cnt);
 void get_dcg_ratio_group_by_scenario(struct subdrv_ctx *ctx,
 		enum SENSOR_SCENARIO_ID_ENUM scenario_id, void *data);
 
+int common_get_vendor_id(struct subdrv_ctx *ctx, u8 *vendor_id);
 int common_get_imgsensor_id(struct subdrv_ctx *ctx, u32 *sensor_id);
 void subdrv_ctx_init(struct subdrv_ctx *ctx);
 void sensor_init(struct subdrv_ctx *ctx);

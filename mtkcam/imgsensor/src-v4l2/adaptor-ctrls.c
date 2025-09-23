@@ -14,6 +14,10 @@
 #include "adaptor-trace.h"
 #include "adaptor-util.h"
 
+#ifdef __XIAOMI_CAMERA__
+int miBlankingflag;
+#endif
+
 #define ctrl_to_ctx(ctrl) \
 	container_of(ctrl->handler, struct adaptor_ctx, ctrls)
 
@@ -231,6 +235,10 @@ static void get_dispatch_gain(struct adaptor_ctx *ctx, u32 tgain, u32 *again, u3
 	u32 *ana_gain_table = ctx->subctx.s_ctx.ana_gain_table;
 	u32 ana_gain_table_size = ctx->subctx.s_ctx.ana_gain_table_size;
 	u32 ana_gain_table_cnt = 0;
+#ifdef __XIAOMI_CAMERA__
+	u32 scenario_id = ctx->subctx.current_scenario_id;
+	u32 ana_gain_max = ctx->subctx.s_ctx.mode[scenario_id].ana_gain_max;
+#endif
 
 	if (dig_gain_step && ana_gain_table && (tgain > ana_gain_table[0])) {
 		ana_gain_table_cnt = (ana_gain_table_size / sizeof(ana_gain_table[0]));
@@ -240,6 +248,13 @@ static void get_dispatch_gain(struct adaptor_ctx *ctx, u32 tgain, u32 *again, u3
 				dg = (u32) ((u64)tgain * BASE_DGAIN / ag);
 				break;
 			}
+#ifdef __XIAOMI_CAMERA__
+			if (ana_gain_table[i] > ana_gain_max) {
+				ag = ana_gain_table[i - 1];
+				dg = (u32) ((u64)tgain * BASE_DGAIN / ag);
+				break;
+			}
+#endif
 		}
 		if (i == ana_gain_table_cnt) {
 			ag = ana_gain_table[i - 1];
@@ -314,6 +329,12 @@ static int set_hdr_gain_dual(struct adaptor_ctx *ctx, struct mtk_hdr_gain *info)
 	u32 len = 0;
 	u32 again_exp[IMGSENSOR_STAGGER_EXPOSURE_CNT] = {0};
 	u32 dgain_exp[IMGSENSOR_STAGGER_EXPOSURE_CNT] = {0};
+
+#ifdef __XIAOMI_CAMERA__
+	ctx->subctx.s_ctx.mi_dcg_gain[IMGSENSOR_STAGGER_EXPOSURE_LE] = info->le_gain;
+	ctx->subctx.s_ctx.mi_dcg_gain[IMGSENSOR_STAGGER_EXPOSURE_ME] = info->me_gain;
+	adaptor_logd(ctx,"X! LE 0x%x ,ME 0x%x",info->le_gain,info->me_gain);
+#endif
 
 	get_dispatch_gain(ctx, info->le_gain, again_exp, dgain_exp);
 	// temporailly workaround, 2 exp should be NE/SE
@@ -503,6 +524,30 @@ static int do_set_dcg_ae_ctrl(struct adaptor_ctx *ctx,
 						ae_ctrl->subsample_tags);
 		}
 
+#ifdef __XIAOMI_CAMERA__
+		//set blanking
+		if (ae_ctrl->blanking_enable) {
+			miBlankingflag = 1;
+			adaptor_logd(ctx, "[XIAOMI_BLANKING] blanking_enable: %d, miBlankingflag: %d, addBlankingTime: %d",
+						ae_ctrl->blanking_enable, miBlankingflag, ae_ctrl->addBlankingTime);
+			para.u64[0] = (u64)ae_ctrl->blanking_enable;
+			para.u64[1] = (u64)ae_ctrl->addBlankingTime;
+			para.u64[2] = 0;
+			subdrv_call(ctx, feature_control,
+				SENSOR_XIAOMI_FEATURE_SET_BLANKING,
+				para.u8, &len);
+		} else if(miBlankingflag) {
+			miBlankingflag = 0;
+			adaptor_logd(ctx, "[XIAOMI_BLANKING] reset blanking: %d", ae_ctrl->blanking_enable);
+			para.u64[0] = (u64)ae_ctrl->blanking_enable;
+			para.u64[1] = 0;
+			para.u64[2] = 0;
+			subdrv_call(ctx, feature_control,
+				SENSOR_XIAOMI_FEATURE_SET_BLANKING,
+				para.u8, &len);
+		}
+#endif
+
 		ADAPTOR_SYSTRACE_BEGIN("imgsensor::set_exposure");
 		fsync_exp[0] = ae_ctrl->exposure.le_exposure;
 		if (!chk_if_need_to_use_s_multi_exp_fl_by_fsync_mgr(
@@ -630,6 +675,30 @@ static int do_set_ae_ctrl(struct adaptor_ctx *ctx,
 			notify_fsync_mgr_subsample_tag(ctx,
 						ae_ctrl->subsample_tags);
 		}
+
+#ifdef __XIAOMI_CAMERA__
+		//set blanking
+		if (ae_ctrl->blanking_enable) {
+			miBlankingflag = 1;
+			adaptor_logd(ctx, "[XIAOMI_BLANKING] blanking_enable: %d, miBlankingflag: %d, addBlankingTime: %d",
+						ae_ctrl->blanking_enable, miBlankingflag, ae_ctrl->addBlankingTime);
+			para.u64[0] = (u64)ae_ctrl->blanking_enable;
+			para.u64[1] = (u64)ae_ctrl->addBlankingTime;
+			para.u64[2] = 0;
+			subdrv_call(ctx, feature_control,
+				SENSOR_XIAOMI_FEATURE_SET_BLANKING,
+				para.u8, &len);
+		} else if(miBlankingflag) {
+			miBlankingflag = 0;
+			adaptor_logd(ctx, "[XIAOMI_BLANKING] reset blanking: %d", ae_ctrl->blanking_enable);
+			para.u64[0] = (u64)ae_ctrl->blanking_enable;
+			para.u64[1] = 0;
+			para.u64[2] = 0;
+			subdrv_call(ctx, feature_control,
+				SENSOR_XIAOMI_FEATURE_SET_BLANKING,
+				para.u8, &len);
+		}
+#endif
 
 		ADAPTOR_SYSTRACE_BEGIN("imgsensor::set_exposure");
 		fsync_exp[0] = ae_ctrl->exposure.le_exposure;
@@ -873,16 +942,19 @@ static int _get_frame_desc(struct adaptor_ctx *ctx, unsigned int pad,
 		struct mtk_mbus_frame_desc fd_tmp = {0};
 		u32 scenario_id = (-1 == i) ? ctx->cur_mode->id : ctx->seamless_scenarios[i];
 
+		if((ctx->subctx.s_ctx.mode != NULL) && (scenario_id != ctx->cur_mode->id) && (ctx->subctx.s_ctx.mode[ctx->cur_mode->id].seamless_switch_group ==HDR_NONE)) {
+			adaptor_logi(ctx, "XM test skip scenario_id =%d",scenario_id);
+			break;
+		}
+
 		if (scenario_id == SENSOR_SCENARIO_ID_NONE)
 			break;
-
 		if (ctx->subctx.s_ctx.mode != NULL &&
 			ctx->subctx.s_ctx.mode[scenario_id].seamless_switch_group !=
 			ctx->subctx.s_ctx.mode[ctx->cur_mode->id].seamless_switch_group){
 			++i;
 			continue;
 		}
-
 		ret = subdrv_call(ctx, get_frame_desc, scenario_id, &fd_tmp);
 
 		if (!ret) {
@@ -1151,6 +1223,50 @@ static u32 get_line_d(struct adaptor_ctx *ctx, u64 linetime_in_ns_readout, u64 l
 	return line_d;
 }
 
+#ifdef __XIAOMI_CAMERA__
+u32 mi_get_mode_vb(struct adaptor_ctx *ctx, const struct sensor_mode *mode)
+{
+	u32 vb, line_d = 1;
+	u32 de_ratio = 1;
+
+	if (mode->linetime_in_ns_readout > mode->linetime_in_ns) {
+		line_d = get_line_d(ctx, mode->linetime_in_ns_readout, mode->linetime_in_ns);
+		if(ctx->subctx.s_ctx.mi_hb_vb_cal){
+			if(ctx->subctx.s_ctx.mode[mode->id].mi_mode_type == 1)
+				de_ratio = 2;
+			else if(ctx->subctx.s_ctx.mode[mode->id].mi_mode_type == 2)
+				de_ratio = 4;
+			else if(ctx->subctx.s_ctx.mode[mode->id].mi_mode_type == 3)
+				de_ratio = 8;
+			vb = ((mode->fll / line_d) - (mode->height / de_ratio)) * de_ratio;
+		}else{
+			vb = (mode->fll / line_d) - mode->height;
+		}
+	} else {
+		if(ctx->subctx.s_ctx.mi_hb_vb_cal){
+			if(ctx->subctx.s_ctx.mode[mode->id].mi_mode_type == 1)
+				de_ratio = 2;
+			else if(ctx->subctx.s_ctx.mode[mode->id].mi_mode_type == 2)
+				de_ratio = 4;
+			else if(ctx->subctx.s_ctx.mode[mode->id].mi_mode_type == 3)
+				de_ratio = 8;
+			vb = (mode->fll - (mode->height / de_ratio)) * de_ratio;
+		}else{
+			vb = mode->fll - mode->height;
+		}
+	}
+
+	adaptor_logd(ctx, "vb %u|%llu|%llu|%u|%u\n",
+		vb,
+		mode->linetime_in_ns_readout,
+		mode->linetime_in_ns,
+		mode->fll,
+		line_d);
+
+	return vb;
+}
+#endif
+
 u32 get_mode_vb(struct adaptor_ctx *ctx, const struct sensor_mode *mode)
 {
 	u32 vb, line_d = 1;
@@ -1181,7 +1297,7 @@ int get_sof_timeout(struct adaptor_ctx *ctx, const struct sensor_mode *mode)
 
 	if (ctx->shutter_for_timeout > 0) {
 		tmp = mode->linetime_in_ns * ctx->shutter_for_timeout / 1000;
-		timeout = tmp / 1000;
+		timeout = tmp;
 	}
 	if (ctx->framelength_for_timeout > 0) {
 		tmp = mode->linetime_in_ns * ctx->framelength_for_timeout / 1000;
@@ -1220,13 +1336,16 @@ static int ext_ctrl(struct adaptor_ctx *ctx, struct v4l2_ctrl *ctrl, struct sens
 		ctrl->val = get_sof_timeout(ctx, mode);
 		break;
 	case V4L2_CID_VBLANK:
+#ifdef __XIAOMI_CAMERA__
+		ctrl->val = mi_get_mode_vb(ctx, mode);
+#else
 		ctrl->val = get_mode_vb(ctx, mode);
+#endif
 		break;
 	case V4L2_CID_HBLANK:
 		ctrl->val =
 			(((mode->linetime_in_ns_readout *
 				mode->mipi_pixel_rate)/1000000000) - mode->width);
-
 		if (ctrl->val < 1)
 			ctrl->val = 1;
 		break;
@@ -1344,12 +1463,20 @@ static int imgsensor_try_ctrl(struct v4l2_ctrl *ctrl)
 						para.u8, &len);
 
 			info->fps = val / 10;
-
-			info->vblank = get_mode_vb(ctx, mode);
-
+#ifdef __XIAOMI_CAMERA__
+			info->vblank = mi_get_mode_vb(ctx, mode);
+			//dev_info(ctx->dev, "[%s] mi_get_mode_vb id: %d",__func__,mode->id);
 			info->hblank =
 				(((mode->linetime_in_ns_readout *
 					mode->mipi_pixel_rate)/1000000000) - mode->width);
+			dev_info(ctx->dev, "[%s] mi_get_mode_vb id: %d ,info->hblank %d ctx->s_ctx.sensor_id 0x%x",__func__,
+					mode->id,info->hblank,ctx->subctx.s_ctx.sensor_id);
+#else
+			info->vblank = get_mode_vb(ctx, mode);
+			info->hblank =
+				(((mode->linetime_in_ns_readout *
+					mode->mipi_pixel_rate)/1000000000) - mode->width) ;
+#endif
 
 			if (info->hblank < 1)
 				info->hblank = 1;
@@ -2636,6 +2763,7 @@ int adaptor_init_ctrls(struct adaptor_ctx *ctx)
 	const struct sensor_mode *cur_mode;
 	struct v4l2_ctrl_handler *ctrl_hdlr;
 	struct v4l2_ctrl_config cfg;
+	u32 de_ratio = 1;
 
 	ctrl_hdlr = &ctx->ctrls;
 	ret = v4l2_ctrl_handler_init(ctrl_hdlr, 8);
@@ -2668,8 +2796,23 @@ int adaptor_init_ctrls(struct adaptor_ctx *ctx)
 		ctx->hblank->flags |= V4L2_CTRL_FLAG_VOLATILE;
 
 	/* vblank */
+#ifdef __XIAOMI_CAMERA__
+	min = def = mi_get_mode_vb(ctx, cur_mode);
+	if(ctx->subctx.s_ctx.mi_hb_vb_cal){
+		if(ctx->subctx.s_ctx.mode[cur_mode->id].mi_mode_type == 1)
+			de_ratio = 2;
+		else if(ctx->subctx.s_ctx.mode[cur_mode->id].mi_mode_type == 2)
+			de_ratio = 4;
+		else if(ctx->subctx.s_ctx.mode[cur_mode->id].mi_mode_type == 3)
+			de_ratio = 8;
+		max = (ctx->subctx.max_frame_length - (cur_mode->height / de_ratio)) * de_ratio;
+	}else{
+		max = ctx->subctx.max_frame_length - cur_mode->height;
+	}
+#else
 	min = def = get_mode_vb(ctx, cur_mode);
 	max = ctx->subctx.max_frame_length - cur_mode->height;
+#endif
 	ctx->vblank = v4l2_ctrl_new_std(ctrl_hdlr, &ctrl_ops,
 				V4L2_CID_VBLANK, min, max, 1, def);
 	if (ctx->vblank)

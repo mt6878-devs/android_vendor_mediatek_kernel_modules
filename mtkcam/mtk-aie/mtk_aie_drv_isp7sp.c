@@ -509,6 +509,16 @@ static void aie_fdvt_dump_reg(struct mtk_aie_dev *fd)
 	//int fld_face_num = fd->aie_cfg->fld_face_num;
 	unsigned int loop_num = 1;
 	int i = 0;
+	unsigned int event_val = 0;
+
+	if (fd->is_shutdown) {
+		aie_dev_info(fd->dev, "%s: skip for shutdown", __func__);
+		return;
+	}
+
+	aie_dump_cg_reg(fd);
+
+	aie_dump_cg_reg(fd);
 
 	if (fd->is_shutdown) {
 		aie_dev_info(fd->dev, "%s: skip for shutdown", __func__);
@@ -963,6 +973,12 @@ static void aie_fdvt_dump_reg(struct mtk_aie_dev *fd)
 				(unsigned int)readl(fd->fd_base + 0x158));
 		}
 	}
+
+	cmdq_mbox_enable(fd->fdvt_clt->chan);
+	event_val = cmdq_get_event(fd->fdvt_clt->chan, fd->aie_cmdq_event);
+	aie_dev_info(fd->dev, "FDVT cmdq event id: %d, status: %d\n",
+		fd->aie_cmdq_event, event_val);
+	cmdq_mbox_disable(fd->fdvt_clt->chan);
 }
 
 static void aie_free_dmabuf(struct mtk_aie_dev *fd, struct imem_buf_info *bufinfo)
@@ -3350,6 +3366,8 @@ static int aie_prepare(struct mtk_aie_dev *fd, struct aie_enq_info *aie_cfg)
 {
 	int ret = 0;
 	static int pre_mode = FLDMODE; // init fld mode, because fld could not enter to aie_prepare
+
+	AIE_SYSTRACE_BEGIN("%s", __func__);
 
 	AIE_SYSTRACE_BEGIN("%s", __func__);
 
