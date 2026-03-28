@@ -1623,34 +1623,17 @@ void scnEventSchedScanDone(struct ADAPTER *prAdapter,
 bool scnEnableSplitScan(struct ADAPTER *prAdapter, uint8_t ucBssIndex,
 				struct CMD_SCAN_REQ_V2 *prCmdScanReq)
 {
-	uint8_t ucWfdEn = FALSE, ucTrxPktEn = FALSE, ucRoamingEn = FALSE;
-	struct PERF_MONITOR *prPerMonitor;
+	uint8_t ucWfdEn = FALSE, ucRoamingEn = FALSE;
 	struct BSS_INFO *prBssInfo = NULL;
 	struct AIS_FSM_INFO *prAisFsmInfo;
-	unsigned long ulTrxPacketsDiffTotal = 0;
 
 	prBssInfo = GET_BSS_INFO_BY_INDEX(prAdapter, ucBssIndex);
-	prPerMonitor = &prAdapter->rPerMonitor;
 
 	if (!prBssInfo)
 		return FALSE;
-	/* Enable condition 1: WFD case*/
+	/* Enable condition: WFD case*/
 	ucWfdEn = wlanWfdEnabled(prAdapter);
 
-	/* Enable condition 2: (TX + RX) packets in last 1s > 30,
-	 * exclude P2P device because prPerMonitor not include P2P device
-	 */
-	if (ucBssIndex < P2P_DEV_BSS_INDEX && IS_BSS_ACTIVE(prBssInfo)) {
-		ulTrxPacketsDiffTotal +=
-			(prPerMonitor->ulTxPacketsDiffLastSec[ucBssIndex] +
-			prPerMonitor->ulRxPacketsDiffLastSec[ucBssIndex]);
-
-		if (ulTrxPacketsDiffTotal > SCAN_SPLIT_PACKETS_THRESHOLD) {
-			log_dbg(SCN, TRACE, "SplitScan: TRXPacket=%ld",
-				ulTrxPacketsDiffTotal);
-			ucTrxPktEn = TRUE;
-		}
-	}
 	/* Enable Pre-condition: not in roaming, avoid roaming scan too long */
 	if (IS_BSS_INDEX_AIS(prAdapter, ucBssIndex)) {
 		prAisFsmInfo = aisGetAisFsmInfo(prAdapter, ucBssIndex);
@@ -1662,10 +1645,10 @@ bool scnEnableSplitScan(struct ADAPTER *prAdapter, uint8_t ucBssIndex,
 					ENUM_SCN_ROMAING;
 		}
 	}
-	log_dbg(SCN, TRACE, "SplitScan: Roam(%d),WFD(%d),TRX(%d)",
-				ucRoamingEn, ucWfdEn, ucTrxPktEn);
+	log_dbg(SCN, TRACE, "SplitScan: Roam(%d),WFD(%d)",
+				ucRoamingEn, ucWfdEn);
 	/* Enable split scan when (not in roam) & (WFD or TRX packet > 30) */
-	if ((!ucRoamingEn) && (ucWfdEn || ucTrxPktEn))
+	if ((!ucRoamingEn) && ucWfdEn)
 		return TRUE;
 	else
 		return FALSE;

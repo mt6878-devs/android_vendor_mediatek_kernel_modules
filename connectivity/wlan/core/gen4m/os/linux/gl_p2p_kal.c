@@ -1206,15 +1206,6 @@ void kalP2PIndicateScanDone(struct GLUE_INFO *prGlueInfo,
 			prP2pGlueDevInfo->prScanRequest);
 
 		KAL_ACQUIRE_MUTEX(prGlueInfo->prAdapter, MUTEX_DEL_INF);
-		GLUE_ACQUIRE_SPIN_LOCK(prGlueInfo, SPIN_LOCK_NET_DEV);
-
-		if ((prP2pGlueDevInfo->prScanRequest != NULL)
-			&& (prGlueInfo->prAdapter->fgIsP2PRegistered == TRUE)) {
-			prScanRequest = prP2pGlueDevInfo->prScanRequest;
-			kalCfg80211ScanDone(prScanRequest, fgIsAbort);
-			prP2pGlueDevInfo->prScanRequest = NULL;
-		}
-		GLUE_RELEASE_SPIN_LOCK(prGlueInfo, SPIN_LOCK_NET_DEV);
 
 		if ((prScanRequest != NULL)
 			&& (prGlueInfo->prAdapter->fgIsP2PRegistered == TRUE)) {
@@ -1227,6 +1218,16 @@ void kalP2PIndicateScanDone(struct GLUE_INFO *prGlueInfo,
 
 			DBGLOG(INIT, TRACE, "DBG:p2p_cfg_scan_done\n");
 		}
+		GLUE_ACQUIRE_SPIN_LOCK(prGlueInfo, SPIN_LOCK_NET_DEV);
+
+		if ((prP2pGlueDevInfo->prScanRequest != NULL)
+			&& (prGlueInfo->prAdapter->fgIsP2PRegistered == TRUE)) {
+			prScanRequest = prP2pGlueDevInfo->prScanRequest;
+			kalCfg80211ScanDone(prScanRequest, fgIsAbort);
+			prP2pGlueDevInfo->prScanRequest = NULL;
+		}
+		GLUE_RELEASE_SPIN_LOCK(prGlueInfo, SPIN_LOCK_NET_DEV);
+
 		KAL_RELEASE_MUTEX(prGlueInfo->prAdapter, MUTEX_DEL_INF);
 
 	} while (FALSE);

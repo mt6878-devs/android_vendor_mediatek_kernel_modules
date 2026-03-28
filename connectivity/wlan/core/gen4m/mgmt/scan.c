@@ -421,6 +421,7 @@ void scanSetRequestChannel(struct ADAPTER *prAdapter,
 	uint32_t au4ChannelBitMap[SCAN_CHANNEL_BITMAP_ARRAY_LEN];
 	struct SCAN_INFO *prScanInfo;
 	bool fgIsLowSpanScan = FALSE;
+	bool fgIsHighAccuracy = FALSE;
 	uint32_t *pau4ChBitMap;
 #if CFG_SUPPORT_FULL2PARTIAL_SCAN
 	uint8_t fgIsFull2Partial = FALSE;
@@ -435,6 +436,7 @@ void scanSetRequestChannel(struct ADAPTER *prAdapter,
 	i = u4Index = 0;
 	kalMemZero(au4ChannelBitMap, sizeof(au4ChannelBitMap));
 	fgIsLowSpanScan = (u4ScanFlags & NL80211_SCAN_FLAG_LOW_SPAN) >> 8;
+	fgIsHighAccuracy = (u4ScanFlags & NL80211_SCAN_FLAG_HIGH_ACCURACY) >> 10;
 
 #if CFG_SUPPORT_FULL2PARTIAL_SCAN
 	/* fgIsCheckingFull2Partial should be true if it's an online scan.
@@ -447,24 +449,27 @@ void scanSetRequestChannel(struct ADAPTER *prAdapter,
 		/* Do full scan when
 		 * 1. did not do full scan yet OR
 		 * 2. not APP scan and it's been 60s after last full scan
+		 * 3. If high accurary scan, do full scan for huanji app
+		 * 4. WifiSetting scan is low latency, so delete the
+		 * condition "fgIsLowSpanScan"
 		*/
 		if (prScanInfo->u4LastFullScanTime == 0 ||
-			(!fgIsLowSpanScan &&
 			(CHECK_FOR_TIMEOUT(rCurrentTime,
 			prScanInfo->u4LastFullScanTime,
-			SEC_TO_SYSTIME(CFG_SCAN_FULL2PARTIAL_PERIOD))))) {
+			SEC_TO_SYSTIME(CFG_SCAN_FULL2PARTIAL_PERIOD))) ||
+			fgIsHighAccuracy) {
 			prScanInfo->fgIsScanForFull2Partial = TRUE;
 			prScanInfo->ucFull2PartialSeq = prScanReqMsg->ucSeqNum;
 			prScanInfo->u4LastFullScanTime = rCurrentTime;
 			kalMemZero(prScanInfo->au4ChannelBitMap,
 				sizeof(prScanInfo->au4ChannelBitMap));
 			log_dbg(SCN, INFO,
-				"Full2partial: 1st full scan start, low span=%d\n",
-				fgIsLowSpanScan);
+				"Full2partial: 1st full scan start, low span=%d, highA=%d\n",
+				fgIsLowSpanScan, fgIsHighAccuracy);
 		} else {
 			log_dbg(SCN, INFO,
-				"Full2partial: enable full2partial, low span=%d\n",
-				fgIsLowSpanScan);
+				"Full2partial: enable full2partial, low span=%d, highA=%d\n",
+				fgIsLowSpanScan, fgIsHighAccuracy);
 			fgIsFull2Partial = TRUE;
 		}
 	}

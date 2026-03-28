@@ -2873,6 +2873,7 @@ uint32_t bssGetIotApAction(struct ADAPTER *prAdapter,
 		}
 		/*All match, set the actions*/
 		prBssDesc->ucIotApAct = prIotApRule->ucAction;
+                break;
 	}
 	return prBssDesc->ucIotApAct;
 }

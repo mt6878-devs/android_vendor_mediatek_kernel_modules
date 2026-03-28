@@ -7685,7 +7685,7 @@ struct BSS_INFO *p2pGetAisConnectedBss(
 	bss = cnmGetSapBssInfo(ad);
 	if (!bss) {
 		DBGLOG(P2P, TRACE, "SAP is not active\n");
-		return NULL;
+		return p2pGetAisBssByBand(ad, BAND_5G);
 	}
 
 	if (p2pGetMode() != RUNNING_P2P_AP_MODE)

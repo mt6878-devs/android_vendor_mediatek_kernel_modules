@@ -4187,6 +4187,8 @@ static void wlanCreateWirelessDevice(void)
 		NL80211_EXT_FEATURE_OCE_PROBE_REQ_HIGH_TX_RATE);
 	wiphy_ext_feature_set(prWiphy,
 		NL80211_EXT_FEATURE_OCE_PROBE_REQ_DEFERRAL_SUPPRESSION);
+	wiphy_ext_feature_set(prWiphy,
+                NL80211_EXT_FEATURE_HIGH_ACCURACY_SCAN);
 #endif
 
 #if (CFG_SUPPORT_BCN_PROT == 1) && \

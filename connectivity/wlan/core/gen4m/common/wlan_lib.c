@@ -11633,7 +11633,7 @@ wlanSortChannel(struct ADAPTER *prAdapter,
 	if (ucSortType == CHNL_SORT_POLICY_BY_CH_DOMAIN) {
 		for (ucBandIdx = BAND_2G4; ucBandIdx < BAND_NUM; ucBandIdx++) {
 			rlmDomainGetChnlList(prAdapter, ucBandIdx,
-				TRUE, MAX_PER_BAND_CHN_NUM,
+				FALSE, MAX_PER_BAND_CHN_NUM,
 				&ucNumOfChannel, aucChannelList);
 
 			DBGLOG(SCN, LOUD, "[ACS]Band=%d, Channel Number=%d\n",
