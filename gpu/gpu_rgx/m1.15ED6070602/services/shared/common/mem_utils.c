@@ -96,11 +96,6 @@ uint256_t;
 
 #if defined(__GNUC__)
 
-#ifndef MIN
-#define MIN(a, b) \
- ({__typeof(a) _a = (a); __typeof(b) _b = (b); _a > _b ? _b : _a;})
-#endif
-
 #if !defined(DEVICE_MEMSETCPY_ALIGN_IN_BYTES)
 #define DEVICE_MEMSETCPY_ALIGN_IN_BYTES __SIZEOF_LONG__
 #endif

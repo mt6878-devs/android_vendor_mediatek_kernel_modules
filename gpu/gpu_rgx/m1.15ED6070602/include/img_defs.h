@@ -438,14 +438,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define BITMASK_HAS(f, m)     (((f) & (m)) == (m)) /* the bits from the mask are all set */
 #define BITMASK_ANY(f, m)     (((f) & (m)) != 0U)  /* any bit from the mask is set */
 
-#ifndef MAX
-#define MAX(a ,b)	(((a) > (b)) ? (a) : (b))
-#endif
-
-#ifndef MIN
-#define MIN(a, b)	(((a) < (b)) ? (a) : (b))
-#endif
-
 #ifndef CLAMP
 #define CLAMP(min, max, n)  ((n) < (min) ? (min) : ((n) > (max) ? (max) : (n)))
 #endif

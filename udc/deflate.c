@@ -1570,7 +1570,6 @@ local void fill_window(deflate_state *s)
 #define MAX_STORED 65535
 
 /* Minimum of a and b. */
-#define MIN(a, b) ((a) > (b) ? (b) : (a))
 
 /* ===========================================================================
  * Copy without compression as much as possible from the input stream, return

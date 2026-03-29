@@ -44,8 +44,6 @@
 
 #define HCIUARTSETPROTO        _IOW('U', 200, int)
 
-#define MAX(a, b)        ((a) > (b) ? (a) : (b))
-#define MIN(a, b)        ((a) < (b) ? (a) : (b))
 
 #define PFX                         "[UART] "
 #define UART_LOG_LOUD                 4
