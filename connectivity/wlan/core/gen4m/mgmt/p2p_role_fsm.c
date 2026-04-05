@@ -2514,17 +2514,45 @@ void p2pRoleFsmRunEventCsaDone(struct ADAPTER *prAdapter,
 
 	DBGLOG(P2P, TRACE, "p2pRoleFsmRunEventCsaDone\n");
 
+	if (!prAdapter) {
+		DBGLOG(P2P, INFO, "prAdapter is null !\n");
+		return;
+	}
+
 	prMsgP2pCsaDoneMsg = (struct MSG_P2P_CSA_DONE *) prMsgHdr;
+
+	if (!prMsgP2pCsaDoneMsg) {
+		DBGLOG(P2P, INFO, "prMsgP2pCsaDoneMsg is null !\n");
+		return;
+	}
 
 	prP2pBssInfo = GET_BSS_INFO_BY_INDEX(prAdapter,
 		prMsgP2pCsaDoneMsg->ucBssIndex);
+
+	if (!prP2pBssInfo) {
+		DBGLOG(P2P, INFO, "prP2pBssInfo is null !\n");
+		return;
+	}
+
 	prAisBssInfo = aisGetConnectedBssInfo(prAdapter);
 
 	prP2pRoleFsmInfo =
 		P2P_ROLE_INDEX_2_ROLE_FSM_INFO(prAdapter,
 			prP2pBssInfo->u4PrivateData);
+
+	if (!prP2pRoleFsmInfo) {
+		DBGLOG(P2P, INFO, "prP2pRoleFsmInfo is null !\n");
+		return;
+	}
+
 	prP2PInfo = prAdapter->prGlueInfo->prP2PInfo[
 			prP2pRoleFsmInfo->ucRoleIndex];
+
+	if (!prP2PInfo) {
+		DBGLOG(P2P, INFO, "prP2PInfo is null !\n");
+		return;
+	}
+
 	prChnlReqInfo = &prP2pRoleFsmInfo->rChnlReqInfo;
 	prClientList = &prP2pBssInfo->rStaRecOfClientList;
 
@@ -2549,9 +2577,23 @@ void p2pRoleFsmRunEventCsaDone(struct ADAPTER *prAdapter,
 				prChnlReqInfo);
 	}
 
-	p2pRoleFsmStateTransition(prAdapter,
-		prP2pRoleFsmInfo,
-		P2P_ROLE_STATE_SWITCH_CHANNEL);
+	if (p2pFuncIsAPMode(prAdapter->rWifiVar
+			.prP2PConnSettings[prP2pBssInfo->u4PrivateData])) {
+			DBGLOG(P2P, INFO, "cnmSapIsActive %d\n", cnmSapIsActive(prAdapter));
+			if (IS_NET_PWR_STATE_IDLE(prAdapter,
+				prP2pBssInfo->ucBssIndex)){
+				DBGLOG(P2P, INFO,"SAP is not active\n");
+			}
+
+			if (cnmSapIsActive(prAdapter))
+					p2pRoleFsmStateTransition(prAdapter,
+					prP2pRoleFsmInfo,
+					P2P_ROLE_STATE_SWITCH_CHANNEL);
+	} else {
+				p2pRoleFsmStateTransition(prAdapter,
+					prP2pRoleFsmInfo,
+					P2P_ROLE_STATE_SWITCH_CHANNEL);
+			}
 
 	cnmTimerStopTimer(prAdapter, &prP2pRoleFsmInfo->rP2pCsaDoneTimer);
 
