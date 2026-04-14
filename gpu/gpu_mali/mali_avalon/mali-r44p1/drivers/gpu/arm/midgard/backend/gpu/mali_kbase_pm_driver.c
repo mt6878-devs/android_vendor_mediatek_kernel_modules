@@ -2530,7 +2530,9 @@ static void dump_cshw_iterator_registers(struct kbase_device *kbdev)
 #include <csf/mali_kbase_csf_registers.h>
 #include <csf/mali_kbase_csf_firmware.h>
 #include <linux/of_irq.h>
+#if IS_ENABLED(CONFIG_MTK_IRQ_DBG)
 extern void mt_irq_dump_status(int irq);
+#endif
 static void mtk_kbase_pm_timed_out_mcu_transition_check(struct kbase_device *kbdev)
 {
 	int i;
@@ -2551,8 +2553,10 @@ static void mtk_kbase_pm_timed_out_mcu_transition_check(struct kbase_device *kbd
 	for (i = 0; i < 3; i++) {
 			// 0: GPU, 1: MMU, 2: JOB
 			irq = irq_of_parse_and_map(kbdev->dev->of_node, i);
+#if IS_ENABLED(CONFIG_MTK_IRQ_DBG)
 			if (irq)
 				mt_irq_dump_status(irq);
+#endif
 	}
 
 	/* dump stack */

@@ -450,7 +450,9 @@ typedef struct _WMT_CONSYS_IC_OPS_ {
 ********************************************************************************
 */
 #if CFG_WMT_DUMP_INT_STATUS
+#if IS_ENABLED(CONFIG_MTK_IRQ_DBG)
 extern void mt_irq_dump_status(int irq);
+#endif
 #endif
 extern struct CONSYS_BASE_ADDRESS conn_reg;
 extern UINT32 gCoClockFlag;

@@ -1666,8 +1666,9 @@ UINT32 wmt_plat_jtag_flag_ctrl(UINT32 en)
 #if CFG_WMT_DUMP_INT_STATUS
 VOID wmt_plat_BGF_irq_dump_status(VOID)
 {
+#if IS_ENABLED(CONFIG_MTK_IRQ_DBG)
 	mt_irq_dump_status(269);/*tag3 wujun rainier is enabled */
-
+#endif
 	WMT_PLAT_PR_INFO("this function is null in MT6735\n");
 }
 
